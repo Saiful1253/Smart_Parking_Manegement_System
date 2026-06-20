@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, MapPin, Pencil, Trash2, X, DollarSign } from 'lucide-react';
+import { Plus, MapPin, Pencil, Trash2, X, DollarSign, Map } from 'lucide-react';
 import { supabase, ParkingZone } from '../../lib/supabase';
+import MapPicker from '../../components/admin/MapPicker';
 
 const zoneTypes = ['covered', 'rooftop', 'underground', 'open_air'] as const;
 const statusOptions = ['active', 'maintenance', 'closed'] as const;
@@ -29,6 +30,7 @@ export default function ParkingZones() {
   const [zones, setZones] = useState<ParkingZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
   const [editing, setEditing] = useState<ParkingZone | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const [saving, setSaving] = useState(false);
@@ -210,16 +212,35 @@ export default function ParkingZones() {
                   </select>
                 </div>
               </div>
+              {/* Map Location Picker */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location on Map</label>
+                <button
+                  type="button"
+                  onClick={() => setShowMapPicker(true)}
+                  className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl px-4 py-4 text-sm font-medium text-gray-600 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-all"
+                >
+                  <Map className="w-5 h-5" />
+                  {form.latitude && form.longitude ? 'Change Location on Map' : 'Select Location on Map'}
+                </button>
+                {form.latitude && form.longitude && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+                    <MapPin className="w-4 h-4 text-green-500" />
+                    <span>Lat: {form.latitude}, Lng: {form.longitude}</span>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
                   <input type="number" step="any" value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} placeholder="23.8103"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
                   <input type="number" step="any" value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} placeholder="90.4125"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
                 </div>
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
@@ -232,6 +253,18 @@ export default function ParkingZones() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Map Picker Modal */}
+      {showMapPicker && (
+        <MapPicker
+          latitude={form.latitude}
+          longitude={form.longitude}
+          onLocationSelect={(lat, lng) => {
+            setForm(f => ({ ...f, latitude: lat, longitude: lng }));
+          }}
+          onClose={() => setShowMapPicker(false)}
+        />
       )}
     </div>
   );
