@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { X, MapPin, Clock, Car, CreditCard, Check } from 'lucide-react';
+import { X, MapPin, Clock, Car, CreditCard, Check, Phone } from 'lucide-react';
 import { supabase, ParkingZone } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 const vehicleTypes = ['car', 'suv', 'motorcycle', 'truck'] as const;
 
-const BKASH_NUMBER = '01841156753';
+const ADMIN_BKASH_NUMBER = '018411673';
 
 type Props = {
   zone: ParkingZone;
@@ -15,13 +15,13 @@ type Props = {
 
 export default function BookingModal({ zone, onClose, onSuccess }: Props) {
   const { user } = useAuth();
-  const [step, setStep] = useState<'form' | 'duration' | 'payment' | 'processing' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'duration' | 'payment' | 'success'>('form');
   const [form, setForm] = useState({
     vehicle_plate: '',
     vehicle_type: 'car' as typeof vehicleTypes[number],
   });
   const [duration, setDuration] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState<'bkash' | 'cash'>('bkash');
+  const [customerBkashNumber, setCustomerBkashNumber] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,32 +29,23 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
   const freeSpots = zone.total_spots - zone.occupied_spots;
   const totalAmount = zone.hourly_rate * duration;
 
-  async function handleContinue(e: React.FormEvent) {
+  function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.vehicle_plate.trim()) { setError('Vehicle plate is required'); return; }
     setError('');
+    setStep('duration');
+  }
 
-    if (step === 'form') {
-      if (!form.vehicle_plate.trim()) {
-        setError('Vehicle plate is required');
-        return;
-      }
-      setStep('duration');
-    } else if (step === 'duration') {
-      setStep('payment');
-    } else if (step === 'payment') {
-      if (paymentMethod === 'bkash' && !transactionId.trim()) {
-        setError('Please enter your bKash Transaction ID');
-        return;
-      }
-      await processBooking();
-    }
+  async function handlePaymentSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!customerBkashNumber.trim()) { setError('Your bKash number is required'); return; }
+    if (customerBkashNumber.trim().length < 10) { setError('Enter a valid bKash number'); return; }
+    if (!transactionId.trim()) { setError('Transaction ID is required'); return; }
+    await processBooking();
   }
 
   async function processBooking() {
-    if (zone.occupied_spots >= zone.total_spots) {
-      setError('This zone is now full');
-      return;
-    }
+    if (zone.occupied_spots >= zone.total_spots) { setError('This zone is now full'); return; }
 
     setLoading(true);
     setError('');
@@ -68,11 +59,7 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
       amount_paid: totalAmount,
     });
 
-    if (err) {
-      setError(err.message);
-      setLoading(false);
-      return;
-    }
+    if (err) { setError(err.message); setLoading(false); return; }
 
     await supabase
       .from('parking_zones')
@@ -81,15 +68,16 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
 
     setLoading(false);
     setStep('success');
-
-    setTimeout(() => {
-      onSuccess();
-    }, 2500);
+    setTimeout(() => onSuccess(), 2500);
   }
+
+  const stepIndex = { form: 0, duration: 1, payment: 2, success: 2 };
+  const currentStep = stepIndex[step];
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+
         {/* Header */}
         <div className="relative bg-gradient-to-r from-pink-500 to-rose-500 px-6 py-5">
           <button
@@ -117,18 +105,17 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
         {/* Progress Steps */}
         <div className="px-6 py-3 bg-gray-50 border-b">
           <div className="flex items-center justify-between">
-            {['form', 'duration', 'payment'].map((s, i) => (
-              <React.Fragment key={s}>
-                <div className={`flex items-center gap-2 ${step === s || (step === 'success' && s === 'payment') ? 'text-blue-600' : step === 'form' && i > 0 || step === 'duration' && i > 1 ? 'text-gray-300' : 'text-gray-400'}`}>
+            {['Vehicle', 'Duration', 'Payment'].map((label, i) => (
+              <React.Fragment key={label}>
+                <div className={`flex items-center gap-2 ${currentStep === i ? 'text-blue-600' : currentStep > i ? 'text-green-600' : 'text-gray-400'}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                    step === s || (step === 'success' && s === 'payment') ? 'bg-blue-500 text-white' :
-                    (step === 'form' && i > 0) || (step === 'duration' && i > 1) ? 'bg-gray-200 text-gray-400' : 'bg-gray-200'
+                    currentStep > i ? 'bg-green-500 text-white' :
+                    currentStep === i ? 'bg-blue-500 text-white' :
+                    'bg-gray-200 text-gray-400'
                   }`}>
-                    {step === 'success' && s === 'payment' ? <Check className="w-3 h-3" /> : i + 1}
+                    {currentStep > i ? <Check className="w-3 h-3" /> : i + 1}
                   </div>
-                  <span className="text-xs font-medium">
-                    {i === 0 ? 'Vehicle' : i === 1 ? 'Duration' : 'Payment'}
-                  </span>
+                  <span className="text-xs font-medium">{label}</span>
                 </div>
                 {i < 2 && <div className="flex-1 h-0.5 bg-gray-200 mx-2" />}
               </React.Fragment>
@@ -136,13 +123,11 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
           </div>
         </div>
 
-        {/* Form Step */}
+        {/* Step 1 — Vehicle */}
         {step === 'form' && (
-          <form onSubmit={handleContinue} className="p-6 space-y-4">
+          <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Vehicle Plate Number
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Vehicle Plate Number</label>
               <div className="relative">
                 <Car className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -157,38 +142,27 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Vehicle Type
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Vehicle Type</label>
               <select
                 value={form.vehicle_type}
                 onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value as any }))}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
               >
                 {vehicleTypes.map(t => (
-                  <option key={t} value={t}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </option>
+                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
                 ))}
               </select>
             </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm">
-                {error}
-              </div>
-            )}
+            {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm">{error}</div>}
 
-            <button
-              type="submit"
-              className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
-            >
+            <button type="submit" className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-500/20">
               Continue
             </button>
           </form>
         )}
 
-        {/* Duration Step */}
+        {/* Step 2 — Duration */}
         {step === 'duration' && (
           <div className="p-6">
             <div className="text-center mb-6">
@@ -197,11 +171,11 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
               <p className="text-sm text-gray-500 mt-1">How long do you need parking?</p>
             </div>
 
-            <div className="flex items-center justify-center gap-4 mb-6">
+            <div className="flex items-center justify-center gap-6 mb-6">
               <button
                 type="button"
                 onClick={() => setDuration(d => Math.max(1, d - 1))}
-                className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-xl font-bold transition-colors"
+                className="w-11 h-11 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-2xl font-bold transition-colors"
               >
                 -
               </button>
@@ -212,14 +186,14 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
               <button
                 type="button"
                 onClick={() => setDuration(d => Math.min(24, d + 1))}
-                className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-xl font-bold transition-colors"
+                className="w-11 h-11 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-2xl font-bold transition-colors"
               >
                 +
               </button>
             </div>
 
             <div className="flex justify-between items-center p-4 bg-blue-50 rounded-xl mb-6">
-              <span className="text-gray-600">Total Amount</span>
+              <span className="text-gray-600 font-medium">Total Amount</span>
               <span className="text-2xl font-bold text-blue-600">৳{totalAmount}</span>
             </div>
 
@@ -229,102 +203,84 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
             >
               Proceed to Payment
             </button>
-            <button
-              onClick={() => setStep('form')}
-              className="w-full py-2.5 mt-2 text-gray-600 text-sm font-medium hover:text-gray-800 transition-colors"
-            >
+            <button onClick={() => setStep('form')} className="w-full py-2.5 mt-2 text-gray-600 text-sm font-medium hover:text-gray-800 transition-colors">
               Back
             </button>
           </div>
         )}
 
-        {/* Payment Step */}
+        {/* Step 3 — Payment */}
         {step === 'payment' && (
-          <div className="p-6">
-            <div className="flex items-center justify-center mb-6">
-              <CreditCard className="w-12 h-12 text-pink-500" />
+          <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <CreditCard className="w-6 h-6 text-pink-500" />
+              <h3 className="text-base font-bold text-gray-900">bKash Payment</h3>
             </div>
 
-            {/* Payment Method Selection */}
-            <div className="space-y-3 mb-6">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('bkash')}
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
-                  paymentMethod === 'bkash'
-                    ? 'border-pink-500 bg-pink-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  paymentMethod === 'bkash' ? 'bg-pink-500' : 'bg-gray-200'
-                }`}>
-                  <span className={`text-white font-bold text-sm ${paymentMethod === 'bkash' ? '' : 'text-gray-600'}`}>bKash</span>
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold text-gray-900">bKash Payment</div>
-                  <div className="text-sm text-gray-500">Send money to complete booking</div>
-                </div>
-                {paymentMethod === 'bkash' && (
-                  <div className="ml-auto w-5 h-5 rounded-full bg-pink-500 flex items-center justify-center">
-                    <Check className="w-3 h-3 text-white" />
-                  </div>
-                )}
-              </button>
-            </div>
-
-            {/* bKash Instructions */}
-            {paymentMethod === 'bkash' && (
-              <div className="bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl p-4 mb-4">
-                <div className="text-center mb-4">
-                  <p className="text-gray-700 text-sm mb-2">Send <span className="font-bold text-pink-600">৳{totalAmount}</span> to this bKash number</p>
-                  <div className="inline-block bg-white px-4 py-2 rounded-lg">
-                    <p className="text-2xl font-bold text-pink-600 tracking-wider">{BKASH_NUMBER}</p>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-600 space-y-1">
-                  <p>1. Open bKash app or dial *247#</p>
-                  <p>2. Select "Send Money"</p>
-                  <p>3. Enter the number: {BKASH_NUMBER}</p>
-                  <p>4. Enter amount: ৳{totalAmount}</p>
-                  <p>5. Use reference: "{form.vehicle_plate}"</p>
-                </div>
+            {/* Admin bKash number — send to this */}
+            <div className="bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl p-4">
+              <p className="text-gray-700 text-sm mb-2 text-center">
+                Send <span className="font-bold text-pink-600">৳{totalAmount}</span> to this bKash number
+              </p>
+              <div className="flex items-center justify-center gap-2 bg-white px-4 py-2.5 rounded-lg mb-3">
+                <Phone className="w-4 h-4 text-pink-500" />
+                <p className="text-2xl font-bold text-pink-600 tracking-wider">{ADMIN_BKASH_NUMBER}</p>
               </div>
-            )}
+              <div className="text-xs text-gray-600 space-y-1">
+                <p>1. Open bKash app or dial *247#</p>
+                <p>2. Select "Send Money"</p>
+                <p>3. Enter the number: <strong>{ADMIN_BKASH_NUMBER}</strong></p>
+                <p>4. Enter amount: ৳{totalAmount}</p>
+                <p>5. Use reference: "<strong>{form.vehicle_plate}</strong>"</p>
+              </div>
+            </div>
 
-            {/* Transaction ID Input */}
-            {paymentMethod === 'bkash' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  bKash Transaction ID
-                </label>
+            {/* Customer's own bKash number */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Your bKash Number <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
-                  type="text"
-                  value={transactionId}
-                  onChange={e => setTransactionId(e.target.value)}
-                  placeholder="Enter your Transaction ID"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                  type="tel"
+                  value={customerBkashNumber}
+                  onChange={e => setCustomerBkashNumber(e.target.value)}
+                  placeholder="e.g. 01XXXXXXXXX"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+                  required
                 />
               </div>
-            )}
+              <p className="text-xs text-gray-400 mt-1">The number you sent money from</p>
+            </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm mb-4">
-                {error}
-              </div>
-            )}
+            {/* Transaction ID */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                bKash Transaction ID <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={transactionId}
+                onChange={e => setTransactionId(e.target.value)}
+                placeholder="e.g. 8G7H6F5D4S"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 tracking-wide"
+                required
+              />
+              <p className="text-xs text-gray-400 mt-1">Found in your bKash transaction history</p>
+            </div>
 
             {/* Summary */}
-            <div className="bg-gray-50 rounded-xl p-4 mb-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex justify-between text-sm text-gray-600 mb-1.5">
                 <span>Vehicle</span>
                 <span className="font-medium text-gray-900">{form.vehicle_plate}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <div className="flex justify-between text-sm text-gray-600 mb-1.5">
                 <span>Duration</span>
                 <span className="font-medium text-gray-900">{duration} hour{duration > 1 ? 's' : ''}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
+              <div className="flex justify-between text-sm text-gray-600 mb-1.5">
                 <span>Rate</span>
                 <span className="font-medium text-gray-900">৳{zone.hourly_rate}/hr</span>
               </div>
@@ -334,23 +290,26 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
               </div>
             </div>
 
+            {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-600 text-sm">{error}</div>}
+
             <button
-              onClick={handleContinue}
+              type="submit"
               disabled={loading}
               className="w-full py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-pink-500/20 disabled:opacity-50"
             >
-              {loading ? 'Processing...' : `Pay ৳${totalAmount}`}
+              {loading ? 'Processing...' : `Confirm Payment — ৳${totalAmount}`}
             </button>
             <button
+              type="button"
               onClick={() => setStep('duration')}
-              className="w-full py-2.5 mt-2 text-gray-600 text-sm font-medium hover:text-gray-800 transition-colors"
+              className="w-full py-2.5 text-gray-600 text-sm font-medium hover:text-gray-800 transition-colors"
             >
               Back
             </button>
-          </div>
+          </form>
         )}
 
-        {/* Success Step */}
+        {/* Success */}
         {step === 'success' && (
           <div className="p-8 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -360,18 +319,26 @@ export default function BookingModal({ zone, onClose, onSuccess }: Props) {
             <p className="text-gray-500 text-sm mb-4">
               Your parking spot has been reserved at {zone.name}
             </p>
-            <div className="bg-gray-50 rounded-xl p-4 text-left">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-gray-500">Spot Number</span>
-                <span className="font-bold text-gray-900">Assigned</span>
+            <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Vehicle</span>
+                <span className="font-bold text-gray-900">{form.vehicle_plate}</span>
               </div>
-              <div className="flex justify-between text-sm mb-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Duration</span>
+                <span className="font-medium text-gray-900">{duration} hour{duration > 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Amount Paid</span>
                 <span className="font-bold text-green-600">৳{totalAmount}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Payment Method</span>
-                <span className="font-medium text-gray-900">{paymentMethod === 'bkash' ? 'bKash' : 'Cash'}</span>
+                <span className="text-gray-500">Your bKash No.</span>
+                <span className="font-medium text-gray-900">{customerBkashNumber}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Transaction ID</span>
+                <span className="font-medium text-gray-900 font-mono">{transactionId}</span>
               </div>
             </div>
           </div>
