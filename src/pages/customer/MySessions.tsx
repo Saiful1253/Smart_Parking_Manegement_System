@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Car, Clock, MapPin, X } from 'lucide-react';
+import { Car, Clock, MapPin, X, Mail } from 'lucide-react';
 import { supabase, ParkingSession, ParkingZone } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -58,6 +58,10 @@ export default function MySessions() {
   return (
     <div className="p-8">
       <div className="mb-6">
+        <div className="inline-flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-full mb-2">
+          <Mail className="w-4 h-4 text-blue-500" />
+          <span className="text-sm font-medium text-blue-700">{user?.email}</span>
+        </div>
         <h1 className="text-3xl font-bold text-gray-900">My Active Sessions</h1>
         <p className="text-gray-500 mt-1">{sessions.length} active parking session{sessions.length !== 1 ? 's' : ''}</p>
       </div>

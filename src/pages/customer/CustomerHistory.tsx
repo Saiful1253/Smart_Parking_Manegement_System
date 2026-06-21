@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Car, Search } from 'lucide-react';
+import { Car, Search, Mail } from 'lucide-react';
 import { supabase, ParkingSession, ParkingZone } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
-type SessionWithZone = ParkingSession & { parking_zones: ParkingZone };
+type SessionWithZone = ParkingSession & { parking_zones: ParkingZone; profiles?: { email: string } };
 
 export default function CustomerHistory() {
   const { user } = useAuth();
@@ -47,6 +47,10 @@ export default function CustomerHistory() {
   return (
     <div className="p-8">
       <div className="mb-6">
+        <div className="inline-flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-full mb-2">
+          <Mail className="w-4 h-4 text-blue-500" />
+          <span className="text-sm font-medium text-blue-700">{user?.email}</span>
+        </div>
         <h1 className="text-3xl font-bold text-gray-900">Parking History</h1>
         <p className="text-gray-500 mt-1">{sessions.length} sessions · ৳{totalSpent.toFixed(2)} total spent</p>
       </div>
